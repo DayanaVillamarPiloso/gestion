@@ -1,0 +1,140 @@
+
+
+
+-----------------------------------------trigger--------------------------------------------------------
+
+
+
+
+
+/* realizar un trigger que impida el registro de una madre a una sala de parto que ya este ocupada */
+
+create or replace function ingreso_sala() /* se crea la funcion */
+returns trigger as $ingreso_sala$ /* devulve lo ingresado en la funcion*/
+	declare /* declaracion de variables*/
+	sala int;/*variable que guarda datos como número y fecha en la que la sala esta ocupada*/
+begin
+/* se realiza el conteo del id de la sala de parto de la tabla de registro en donde el id de la sala
+de parto es igual al nuevo id que se va a ingresar y la fecha en lal cual se registra el parto con la fecha
+que se va a insertar
+*/
+select count (*) into sala from registro where (sal_part_id=new.sal_part_id) and (res_fecha_parto=new.res_fecha_parto);
+	if (sala > 0) then /**/
+	  raise exception 'Esta sala esta ocupada y no se puede realizar un nuevo parto aqui';
+	/*se indica el mensaje que se mostrara ante el susceso*/
+	end if;
+	return new;/**/
+end;
+$ingreso_sala$
+Language plpgsql;	
+		 
+
+/*trigger*/
+CREATE trigger control_de_registro before insert
+	on registro for each row
+	execute procedure ingreso_sala();
+
+
+insert into REGISTRO values
+(6,6,5,4,'Esta en parto','10/03/2021','Sangrado',400.00,1,'10/03/2021');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+------------------------------------------------------cursor ------------------------------------------------------------
+---------------UN CURSOR QUE MUESTRE LOS SIGUIENTES DATOS DE UNA AREA DETERMINADA EL NOMBRE DEL EMPLEADO-------------
+----------------EL NOMBRE DE LA MADRE, LA SALA DE PARTO EN LA CUAL NACIO EL BEBE Y LA FECHA DEL PARTO----------------
+------------------------------------------------------OBSTÉETRICA----------------------------------------------------
+
+	CREATE OR REPLACE FUNCTION datos_ingresados() RETURNS TEXT
+	AS $$
+	DECLARE
+		texto record;
+		cur_ingreso CURSOR FOR SELECT * FROM empleado
+		 inner join public.departamento_medico on empleado.det_me_id = departamento_medico.det_me_id
+		 inner join  public.registro on registro.em_id = empleado.em_id 
+		 inner join  public.madre on registro.mad_id = madre.mad_id
+		 inner join  public.division_medica on empleado.div_med_id = division_medica.div_med_id
+		 INNER JOIN public.sala_parto ON sala_parto.sal_part_id = empleado.sal_part_id
+		 WHERE det_me_area = 'Obstétrica';
+	BEGIN
+		FOR texto in cur_ingreso loop
+			RAISE NOTICE 'Empleado: % Numero de Sala: % Fecha del parto: % Atendido por: %', 
+			texto.em_nombre, texto.sal_part_numero_sala, texto.res_fecha_parto, texto.div_med_division;
+		end loop;
+	end $$
+	Language 'plpgsql';
+------------------------------------- LLAMADA DEL METODO -----------------
+
+	SELECT datos_ingresados();
+
+
+
+
+
+
+
+
+----------------------------------------PROCEDIMIENTO ALMACENADO------------------------------------------
+------------------------------PROCEDIMIENTO ALMACENADO-------------------------
+-------BUSCAR SI UNA DETERMINADA MADRE DE FAMILIA LLEGO CON UN ACOMPAÑANTE-----
+
+  CREATE OR REPLACE function buscar_madre(madre int)
+  RETURNS text
+  as $madre_buscada$
+  	DECLARE
+	resul INT;
+      BEGIN
+		 SELECT mad_id into resul FROM conyuge	WHERE mad_id = madre;
+		 if (resul > 0) then
+		 	RAISE NOTICE 'ESTA MADRE DE FAMILIA SI TIENE ACOMPAÑANTE';
+		 end if;
+      end;
+  $madre_buscada$
+  Language 'plpgsql';
+  
+
+----------------------LLAMADA DEL METODO----------------------
+
+SELECT buscar_madre(2)
+
+
+
+
+
+
+
+
+
+
+-------------------------------------------------------CODIGO PARA EL REPORTE------------------------
+SELECT 
+  registro.res_id AS num_registro, 
+  registro.res_fecha AS fecha_registro, 
+  CONCAT(madre.mad_nombre || ' ' || madre.mad_apellido)AS nombre_madre,
+  madre.mad_telefono AS tel_madre,
+  registro.res_motivo_visita AS motivo_visita, 
+  CONCAT(empleado.em_nombre || ' ' || empleado.em_apellido) as nombre_empleado,
+  sala_parto.sal_part_numero_sala AS numero_sala, 
+  departamento_medico.det_me_area AS nom_departamento, 
+  division_medica.div_med_division AS nom_division, 
+  registro.res_pago AS pago
+FROM public.registro
+INNER JOIN public.empleado ON registro.em_id = empleado.em_id
+INNER JOIN public.madre ON registro.mad_id = madre.mad_id
+INNER JOIN public.sala_parto ON sala_parto.sal_part_id = registro.sal_part_id
+INNER JOIN public.departamento_medico ON departamento_medico.det_me_id = empleado.det_me_id
+INNER JOIN public.division_medica ON  division_medica.div_med_id = empleado.div_med_id
+WHERE departamento_medico.det_me_area='Obstétrica';
+--------------------------------------------------------------------------
